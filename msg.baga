@@ -8,6 +8,7 @@ fn MT_AE_REP() -> i64 { return 4 }
 fn MT_PUT() -> i64 { return 5 }
 fn MT_GET() -> i64 { return 6 }
 fn MT_STOP() -> i64 { return 7 }
+fn MT_ROLE() -> i64 { return 8 }
 
 fn msg_type(m: i64) -> i64 { return cell2_0(m) }
 
@@ -80,6 +81,10 @@ fn get_key(m: i64) -> i64 { return cell2_0(cell2_1(m)) }
 fn get_reply(m: i64) -> i64 { return cell2_1(cell2_1(m)) }
 
 fn msg_stop() -> i64 { return cell2(MT_STOP(), 0) }
+
+// ROLE: cell2(ROLE, reply_ch) → reply cell2(1, role)
+fn msg_role(reply: i64) -> i64 { return cell2(MT_ROLE(), reply) }
+fn role_reply(m: i64) -> i64 { return cell2_1(m) }
 
 // Command packing for log entries: cell2(key, val)
 fn cmd_pack(key: i64, val: i64) -> i64 { return cell2(key, val) }

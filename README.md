@@ -46,6 +46,8 @@ runtime probe.
 fn raft_start() -> RaftCluster !Par !IO   // wipes prior state files
 fn raft_put(c, key, val) -> i64 !Par    // 0 ok, -1 fail after retries
 fn raft_get(c, key) -> i64 !Par         // value or -999999
+fn raft_leader_id(c) -> i64 !Par        // 0..2 or -1
+fn raft_kill(c, id) -> i64 !Par         // stop one node
 fn raft_stop(c) -> i64 !Par
 // persist.baga: raft_persist_save/load/apply/wipe
 ```
