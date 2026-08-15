@@ -1,5 +1,22 @@
 # raftbaga
 
+
+This repository is the package. The compiler and `std` stay in the baga
+language monorepo. Check this tree out as `app-product/raftbaga` there
+(git submodule) so path deps and `-I app-product` keep working.
+
+## Checkout
+
+Inside a baga language clone:
+
+```bash
+git submodule update --init --recursive
+# or, first time from a fresh baga tree without the submodule recorded:
+git clone git@github.com:bagalang/raftbaga.git app-product/raftbaga
+```
+
+`sandak.toml` keeps path deps so shared packages stay in baga.
+`tests/raft_test.baga` stays in baga.
 **Raft fragment** for Baga — Track S step **S7** (the distributed exam).
 Three in-process nodes, CSP only (`go` / channels / `chan_recv_timeout`),
 no shared mutable state between nodes. Leader election + single-entry log
