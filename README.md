@@ -67,3 +67,7 @@ fn raft_stop(c) -> i64 !Par
 - Full election safety / log matching across crashes: **not proven**.
 
 See [gaps.md](gaps.md).
+
+## License
+
+[MIT](LICENSE) — Copyright (c) 2026 Dim Gigov.
