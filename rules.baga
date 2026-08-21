@@ -44,14 +44,14 @@ spec can_grant_vote {
         output == 0 || output == 1
 }
 fn can_grant_vote(current: i64, voted_for: i64, cand_term: i64, cand_id: i64) -> i64 {
-    if cand_term != current {
-        return 0
-    }
-    if voted_for == -1 {
-        return 1
-    }
-    if voted_for == cand_id {
-        return 1
+    if cand_term == current {
+        /* voted_for < 0 ≡ none (requires voted_for >= -1) */
+        if voted_for < 0 {
+            return 1
+        }
+        if voted_for == cand_id {
+            return 1
+        }
     }
     return 0
 }
@@ -123,11 +123,10 @@ spec prev_log_ok {
         output == 0 || output == 1
 }
 fn prev_log_ok(log_len: i64, prev_idx: i64, log_term_at_prev: i64, prev_term: i64) -> i64 {
-    if prev_idx >= log_len {
-        return 0
+    if prev_idx < log_len {
+        if log_term_at_prev == prev_term {
+            return 1
+        }
     }
-    if log_term_at_prev != prev_term {
-        return 0
-    }
-    return 1
+    return 0
 }
