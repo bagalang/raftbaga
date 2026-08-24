@@ -37,7 +37,7 @@ runtime probe.
 | Log | Single-entry AppendEntries; index 0 sentinel |
 | Commit | Majority `match_idx`; apply to per-node `Map<i64,i64>` |
 | Client | `raft_put` / `raft_get` broadcast; leader replies on private chan |
-| Durable (B4.2) | term/vote/commit/log → `/tmp/baga_raft_<id>.state`; load+reapply on start |
+| Durable (B4.2) | term/vote/commit/log → `/tmp/baga_raft_<id>.state` (`raft2` + CRC-32C) |
 | Verify | `examples/verify/raft_term.baga` + rules specs |
 
 ## API
@@ -63,7 +63,7 @@ fn raft_stop(c) -> i64 !Par
 
 ## Honest limits
 
-- N = 3 only; durable file is best-effort text (no CRC/fsync every entry).
+- N = 3 only; durable file is best-effort text (CRC-32C, no fsync every entry).
 - PUT wait may drop non-AE_REP messages (no internal queue) — fine at probe load.
 - No pre-vote, snapshots, membership change, network partitions.
 - Full election safety / log matching across crashes: **not proven**.

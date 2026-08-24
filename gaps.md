@@ -17,8 +17,9 @@ entries; flush on vote/log/commit/stop. `raft_start` wipes files for a clean
 cluster.
 
 **Residual.** Not fsynced on every entry (best-effort `write_file`); no
-stable storage path config; not lsmbaga-backed. Kill mid-write can corrupt
-the text file (no CRC).
+stable storage path config; not lsmbaga-backed. `raft2` files carry a
+CRC-32C over the body; mismatch → empty persist (fail-closed). `raft1`
+files still load without CRC.
 
 ## R3 — N fixed at 3
 

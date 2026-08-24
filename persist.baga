@@ -1,21 +1,28 @@
 // persist.baga — durable Raft state lite (B4.2 / R2).
 // On-disk text format (path = raft_state_path(id)):
-//   raft1
+//   raft2
 //   term <i64>
 //   voted_for <i64>     # -1 = none
 //   commit_idx <i64>
 //   log_len <i64>
 //   e <idx> <term> <key> <val>   # one line per log index (0..log_len-1)
 //
+//   crc <crc32c of preceding lines including newlines>
+// raft1 files still load (no CRC). Missing / CRC mismatch → ok=0.
 // Cmd 0 is the empty sentinel (key=0,val=0). Recovery reloads term/vote/log
 // and re-applies committed entries into a KV map.
 
 import "msg.baga"
 import "std/os/os.baga"
 import "std/str/str.baga"
+import "std/crypto/crc32c.baga"
+import "bufbaga/buf.baga"
 
 fn raft_state_path(id: i64) -> str {
-    return concat("/tmp/baga_raft_", concat(int_to_str(id), ".state"))
+    let mut b = buf_from("/tmp/baga_raft_")
+    b = buf_push_i64(b, id)
+    b = buf_push(b, ".state")
+    return buf_str(b)
 }
 
 struct RaftPersist {
@@ -47,11 +54,19 @@ fn raft_persist_empty() -> RaftPersist {
 // Serialize current durable fields to a string.
 fn raft_persist_encode(term: i64, voted_for: i64, commit_idx: i64,
                        log_terms: Vec<i64>, log_cmds: Vec<i64>, log_len: i64) -> str {
-    let mut s = "raft1\n"
-    s = concat(s, concat(concat("term ", int_to_str(term)), "\n"))
-    s = concat(s, concat(concat("voted_for ", int_to_str(voted_for)), "\n"))
-    s = concat(s, concat(concat("commit_idx ", int_to_str(commit_idx)), "\n"))
-    s = concat(s, concat(concat("log_len ", int_to_str(log_len)), "\n"))
+    let mut s = buf_from("raft2\n")
+    s = buf_push(s, "term ")
+    s = buf_push_i64(s, term)
+    s = buf_push_chr(s, 10)
+    s = buf_push(s, "voted_for ")
+    s = buf_push_i64(s, voted_for)
+    s = buf_push_chr(s, 10)
+    s = buf_push(s, "commit_idx ")
+    s = buf_push_i64(s, commit_idx)
+    s = buf_push_chr(s, 10)
+    s = buf_push(s, "log_len ")
+    s = buf_push_i64(s, log_len)
+    s = buf_push_chr(s, 10)
     let mut i: i64 = 0
     while i < log_len {
         let t = vec_get(log_terms, i)
@@ -62,14 +77,23 @@ fn raft_persist_encode(term: i64, voted_for: i64, commit_idx: i64,
             k = cmd_key(c)
             v = cmd_val(c)
         }
-        s = concat(s, "e ")
-        s = concat(s, concat(int_to_str(i), " "))
-        s = concat(s, concat(int_to_str(t), " "))
-        s = concat(s, concat(int_to_str(k), " "))
-        s = concat(s, concat(int_to_str(v), "\n"))
+        s = buf_push(s, "e ")
+        s = buf_push_i64(s, i)
+        s = buf_push_chr(s, 32)
+        s = buf_push_i64(s, t)
+        s = buf_push_chr(s, 32)
+        s = buf_push_i64(s, k)
+        s = buf_push_chr(s, 32)
+        s = buf_push_i64(s, v)
+        s = buf_push_chr(s, 10)
         i = i + 1
     }
-    return s
+    let body = buf_str(s)
+    let crc = crc32c_b(bytes_of_str(body))
+    s = buf_push(s, "crc ")
+    s = buf_push_i64(s, crc)
+    s = buf_push_chr(s, 10)
+    return buf_str(s)
 }
 
 fn raft_persist_save(path: str, term: i64, voted_for: i64, commit_idx: i64,
@@ -81,13 +105,45 @@ fn raft_persist_save(path: str, term: i64, voted_for: i64, commit_idx: i64,
 // Parse durable file. ok=0 if missing/corrupt (caller starts empty).
 fn raft_persist_load(path: str) -> RaftPersist !IO {
     let empty = raft_persist_empty()
+    if file_exists(path)? == 0 {
+        return empty
+    }
     let body = read_file(path)?
     if body == "" {
         return empty
     }
-    let lines = str_split(body, "\n")
-    if vec_len(lines) < 1 || vec_get(lines, 0) != "raft1" {
+    let lines: Vec<str> = str_split(body, "\n")
+    if vec_len(lines) < 1 {
         return empty
+    }
+    let ver = vec_get(lines, 0)
+    if ver != "raft1" && ver != "raft2" {
+        return empty
+    }
+    if ver == "raft2" {
+        let mut prefix = buf_new()
+        let mut got_crc: i64 = 0
+        let mut crc_val: i64 = 0
+        let mut li0: i64 = 0
+        while li0 < vec_len(lines) {
+            let ln0 = vec_get(lines, li0)
+            if str_starts_with(ln0, "crc ") {
+                got_crc = 1
+                crc_val = parse_int(substr(ln0, 4, len(ln0)))
+            } else {
+                if ln0 != "" {
+                    prefix = buf_push(prefix, ln0)
+                    prefix = buf_push_chr(prefix, 10)
+                }
+            }
+            li0 = li0 + 1
+        }
+        if got_crc == 0 {
+            return empty
+        }
+        if crc32c_b(bytes_of_str(buf_str(prefix))) != crc_val {
+            return empty
+        }
     }
     let mut term: i64 = 0
     let mut voted_for: i64 = -1
@@ -107,7 +163,7 @@ fn raft_persist_load(path: str) -> RaftPersist !IO {
     while li < vec_len(lines) {
         let ln = vec_get(lines, li)
         if ln != "" {
-            let parts = str_split(ln, " ")
+            let parts: Vec<str> = str_split(ln, " ")
             let head = vec_get(parts, 0)
             if head == "term" && vec_len(parts) >= 2 {
                 term = parse_int(vec_get(parts, 1))

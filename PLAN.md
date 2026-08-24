@@ -1,7 +1,7 @@
 # raftbaga — plan
 
-Date: 2026-08-05
-Status: **P0 MVP done** (S7)
+Date: 2026-08-24
+Status: **P0 done**; P2 persist CRC (0.2.0)
 Goal: distributed exam — election + replication over channels.
 
 ## P0 ✅
