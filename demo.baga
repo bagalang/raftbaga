@@ -3,7 +3,7 @@
 import "cluster.baga"
 import "std/str/str.baga"
 
-fn main() -> i64 !Par {
+fn main() -> i64 !Par !IO {
     print("raftbaga demo — starting 3-node cluster…")
     let c = raft_start()?
     print("cluster up (election window passed)")
