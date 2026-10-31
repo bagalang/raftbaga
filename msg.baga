@@ -91,6 +91,92 @@ fn cmd_pack(key: i64, val: i64) -> i64 { return cell2(key, val) }
 fn cmd_key(c: i64) -> i64 { return cell2_0(c) }
 fn cmd_val(c: i64) -> i64 { return cell2_1(c) }
 
+// P56: освобождаване на nested cell2 съобщение. entry_cmd при AE НЕ се
+// пипа — той се записва в log_cmds и живее в node-а.
+fn msg_free(m: i64) {
+    if m == 0 {
+        return
+    }
+    let t = msg_type(m)
+    if t == MT_RV() {
+        let a = cell2_1(m)
+        let b = cell2_1(a)
+        let c = cell2_1(b)
+        cell2_free(c)
+        cell2_free(b)
+        cell2_free(a)
+    } else if t == MT_RV_REP() {
+        let a = cell2_1(m)
+        let b = cell2_1(a)
+        cell2_free(b)
+        cell2_free(a)
+    } else if t == MT_AE() {
+        let a = cell2_1(m)
+        let b = cell2_1(a)
+        let c = cell2_1(b)
+        let d = cell2_1(c)
+        let e = cell2_1(d)
+        let f = cell2_1(e)
+        cell2_free(f)
+        cell2_free(e)
+        cell2_free(d)
+        cell2_free(c)
+        cell2_free(b)
+        cell2_free(a)
+    } else if t == MT_AE_REP() {
+        let a = cell2_1(m)
+        let b = cell2_1(a)
+        let c = cell2_1(b)
+        cell2_free(c)
+        cell2_free(b)
+        cell2_free(a)
+    } else if t == MT_PUT() {
+        let a = cell2_1(m)
+        let b = cell2_1(a)
+        cell2_free(b)
+        cell2_free(a)
+    } else if t == MT_GET() {
+        let a = cell2_1(m)
+        cell2_free(a)
+    }
+    cell2_free(m)
+}
+
+// P56: broadcast праща един handle до няколко peer-а; всеки receiver
+// free-ва. Клонираме per peer, за да няма double-free. entry_cmd се
+// споделя (живее в log_cmds), затова не се копира.
+fn msg_clone(m: i64) -> i64 {
+    let t = msg_type(m)
+    if t == MT_RV() {
+        return msg_rv(rv_term(m), rv_from(m), rv_last_idx(m), rv_last_term(m))
+    }
+    if t == MT_RV_REP() {
+        return msg_rv_rep(rvr_term(m), rvr_from(m), rvr_granted(m))
+    }
+    if t == MT_AE() {
+        return msg_ae(ae_term(m), ae_from(m), ae_prev_idx(m), ae_prev_term(m),
+                      ae_leader_commit(m), ae_entry_term(m), ae_entry_cmd(m))
+    }
+    if t == MT_AE_REP() {
+        return msg_ae_rep(aer_term(m), aer_from(m), aer_success(m), aer_match(m))
+    }
+    if t == MT_PUT() {
+        return msg_put(put_key(m), put_val(m), put_reply(m))
+    }
+    if t == MT_GET() {
+        return msg_get(get_key(m), get_reply(m))
+    }
+    if t == MT_STOP() {
+        return msg_stop()
+    }
+    if t == MT_ROLE() {
+        return msg_role(role_reply(m))
+    }
+    return m
+}
+
+fn reply_free(r: i64) { cell2_free(r) }
+
 // Client reply: cell2(ok, value)
 fn reply_ok(v: i64) -> i64 { return cell2(1, v) }
 fn reply_err() -> i64 { return cell2(0, 0) }

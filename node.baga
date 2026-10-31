@@ -31,10 +31,11 @@ fn broadcast(peers: i64, self_id: i64, m: i64) -> i64 !Par {
     let mut i: i64 = 0
     while i < N() {
         if i != self_id {
-            send_to(peers, i, m)?
+            send_to(peers, i, msg_clone(m))?
         }
         i = i + 1
     }
+    msg_free(m)
     return 0
 }
 
@@ -413,7 +414,9 @@ fn raft_node(ctx: i64) -> i64 !Par !IO {
                                                 waited = 80
                                             }
                                         }
+                                        msg_free(m2)
                                     }
+                                    cell2_free(r2)
                                     waited = waited + 1
                                 }
                             }
@@ -445,6 +448,11 @@ fn raft_node(ctx: i64) -> i64 !Par !IO {
                 }
             }
         }
+        // P56: външният cell винаги е наш; nested съобщението — при st==1.
+        if st == 1 {
+            msg_free(cell2_1(r))
+        }
+        cell2_free(r)
     }
     return 0
 }
